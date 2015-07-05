@@ -15,7 +15,7 @@ class SearchQuery
     @headles = nil
     @browser = nil
     @trip_duration = 10
-    @scope = 30
+    @scope = 200
     @dest = ["SCL-MVD", "SCL-LAX"]
     @alert_price = Hash.new
     @prices = Hash.new
