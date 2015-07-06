@@ -5,8 +5,11 @@ require 'active_support/core_ext/numeric/time'
 require 'active_support/all'
 require 'rest-client'
 require 'mail'
+require 'logger'
 
 class SearchQuery
+  @@log = Logger.new('main.txt')
+  def log; @@log; end
   def b;  @browser;  end
   def h;  @headless;  end
 
@@ -15,7 +18,7 @@ class SearchQuery
     @headles = nil
     @browser = nil
     @trip_duration = 10
-    @scope = 200
+    @scope = 20
     @dest = ["SCL-MVD", "SCL-LAX"]
     @alert_price = Hash.new
     @prices = Hash.new
@@ -31,7 +34,7 @@ class SearchQuery
     File.open("dest.txt") do |file|
       file.each do |line|
         dest,price = line.gsub("\n", "").split(",")
-        price = 150 if price.blank?
+        price = 120 if price.blank?
         price = price.to_i
         @dest << dest
         @alert_price[dest] = price
@@ -63,6 +66,7 @@ class SearchQuery
   end
 
   def start
+    log.debug "started"
     @parsers.each do |parser|
       c = Object.const_get(parser)
       c = c.new
@@ -70,7 +74,11 @@ class SearchQuery
         dest_s = dest.split("-")
         next if dest_s.size < 2
         for i in 0..(dest_s.size - 2)
-          iterate(c, dest_s[i], dest_s[i + 1])
+          orig = dest_s[i]
+          dest = dest_s[i + 1]
+          iterate(c, orig, dest )
+          send_email("#{@prices["#{orig}-#{dest}"]}") if @prices["#{orig}-#{dest}"].try(:price) || 999999 < (@alert_price["#{orig}-#{dest}"] || 120)
+          log.debug "#{@prices["#{orig}-#{dest}"]}"
         end
       end
     end
@@ -83,18 +91,22 @@ class SearchQuery
       values << val[1].to_s
     end
     send_email(values.join("\n"))
+    log.debug "ended"
   end
 
   def iterate(c, orig, dest)
     s_d = Date.today + 10.days
     e_d = s_d + @trip_duration.days
     while Date.today + @scope > s_d
-      values = c.get_values(orig, dest, s_d, e_d)
-      send_email("ORIG #{orig}-#{dest}: #{s_d} #{e_d} #{values}") if values[0] < (@alert_price["#{orig}-#{dest}"] || 120)
-      add_price(*values)
+      begin
+        values = c.get_values(orig, dest, s_d, e_d)
+      rescue Exception => e
+        log.error e.to_s
+      end
+      add_price(*values) if values.present? && values[0].present?
       s_d = s_d + c.step_days.days
       e_d = s_d + @trip_duration.days
-      sleep 0.2
+      sleep 0.3
     end
   end
 
@@ -110,7 +122,7 @@ end
 
 class PriceResult
   def to_s
-    "#{@price} ####  #{@url} #### #{@orig}-#{@dest} #{@date1} #{@date2}"
+    "#{@price} #{@orig}-#{@dest} #{@date1} #{@date2} \n  #{@url}"
   end
   def price; @price; end
   def initialize(price, url, orig, dest, date1, date2)
@@ -137,11 +149,13 @@ end
 class PriceParser
   @browser = nil
   @headless = nil
-  @step_days = 1
+  @@log = Logger.new('parser.txt')
 
   def b;  @browser;  end
+  def log;  @@log;  end
   def h;  @headless;  end
   def initialize(browser = nil)
+    @step_days = 1
     if browser
       @browser = browser
     else
@@ -159,7 +173,11 @@ class LanParser < PriceParser
     @step_days = 7
   end
   def get_values(orig, dest, date1, date2)
-    json = JSON.parse(RestClient.get get_url(orig, dest, date1, date2)) rescue nil
+    response = RestClient.get get_url(orig, dest, date1, date2)
+    if response.code.to_i != 200
+     log.debug "status: #{response.code}"
+    end
+    json = JSON.parse(response.to_str) rescue nil
     price = 999999999999
     url = get_public_url(orig, dest, date1, date2)
     query =  json['data']['recomendations']['data'] rescue []
@@ -194,7 +212,8 @@ while true
     a.start
     a.analize
   rescue Exception => e
-    a.send_email(e)
+    p e
+    a.log.error e.to_s
   end
   sleep(3600)
 end
