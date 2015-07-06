@@ -18,7 +18,7 @@ class SearchQuery
     @headles = nil
     @browser = nil
     @trip_duration = 10
-    @scope = 20
+    @scope = 200
     @dest = ["SCL-MVD", "SCL-LAX"]
     @alert_price = Hash.new
     @prices = Hash.new
@@ -77,7 +77,7 @@ class SearchQuery
           orig = dest_s[i]
           dest = dest_s[i + 1]
           iterate(c, orig, dest )
-          send_email("#{@prices["#{orig}-#{dest}"]}") if @prices["#{orig}-#{dest}"].try(:price) || 999999 < (@alert_price["#{orig}-#{dest}"] || 120)
+          send_email("#{@prices["#{orig}-#{dest}"]}") if (@prices["#{orig}-#{dest}"].try(:price) || 999999) < (@alert_price["#{orig}-#{dest}"] || 120)
           log.debug "#{@prices["#{orig}-#{dest}"]}"
         end
       end
@@ -98,6 +98,7 @@ class SearchQuery
     s_d = Date.today + 10.days
     e_d = s_d + @trip_duration.days
     while Date.today + @scope > s_d
+      values = nil
       begin
         values = c.get_values(orig, dest, s_d, e_d)
       rescue Exception => e
