@@ -32,6 +32,7 @@ class SearchQuery
       file.each do |line|
         dest,price = line.gsub("\n", "").split(",")
         price = 150 if price.blank?
+        price = price.to_i
         @dest << dest
         @alert_price[dest] = price
       end
@@ -186,6 +187,14 @@ class LanParser < PriceParser
     return url
   end
 end
-a = SearchQuery.new
-a.start
-a.analize
+
+while true
+  a = SearchQuery.new
+  begin
+    a.start
+    a.analize
+  rescue Exception => e
+    a.send_email(e)
+  end
+  sleep(3600)
+end
