@@ -1,7 +1,7 @@
 require 'rubygems'
 require 'active_support/core_ext/numeric/time'
-require 'watir-webdriver'
-require 'headless'
+#require 'watir-webdriver'
+#require 'headless'
 require 'active_support/all'
 require 'rest-client'
 require 'mail'
@@ -73,15 +73,12 @@ class SearchQuery
         end
       end
     end
-    p @prices
   end
 
   def analize
     sorted = @prices.sort_by{|k,v| v.price }
     values = []
     sorted[0..5].each do |val|
-      p val.to_s
-      p val[1].to_s
       values << val[1].to_s
     end
     send_email(values.join("\n"))
